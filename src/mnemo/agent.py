@@ -16,8 +16,19 @@ class Agent:
         self.max_steps = max_steps
 
     def handle(self, user_input: str) -> str:
-        messages = [{"role": "system", "content": SYSTEM},
-                    {"role": "user", "content": user_input}]
+        messages = [{"role": "system", "content": SYSTEM}]
+        # Spec §4: proactively recall relevant facts and inject them so recall
+        # doesn't depend on the small model deciding to call the recall tool.
+        try:
+            recalled = self.mem.recall(user_input, k=5)
+        except Exception:
+            recalled = []
+        if recalled:
+            facts = "\n".join(f"- {f.text}" for f in recalled)
+            messages.append({
+                "role": "system",
+                "content": "Relevant things you remember about the user:\n" + facts})
+        messages.append({"role": "user", "content": user_input})
         calls_made = []
         for _ in range(self.max_steps):
             out = model.chat(messages, tools=tools.SCHEMAS)

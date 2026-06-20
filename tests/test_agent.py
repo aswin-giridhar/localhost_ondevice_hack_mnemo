@@ -22,6 +22,27 @@ def test_agent_remembers_then_recalls(tmp_path):
     assert any("Pixel" in f.text for f in mem.all_facts())
 
 
+def test_agent_injects_recalled_facts_into_context(tmp_path):
+    """Spec §4: handle() proactively recalls relevant facts and injects them into
+    context, so recall does not depend on the small model choosing to call the
+    recall tool (the R2 failure observed live with LFM2)."""
+    mem = LanceMemory(fake_embed, str(tmp_path / "m"))
+    mem.remember("my landlord is Mr Okafor", {})
+    captured = {}
+
+    def fake_chat(messages, tools=None):
+        captured["messages"] = messages
+        return {"content": "Your landlord is Mr Okafor.", "tool_calls": []}
+
+    with patch("mnemo.agent.model.chat", side_effect=fake_chat):
+        reply = Agent(mem).handle("who is my landlord?")
+
+    blob = " ".join(
+        m["content"] for m in captured["messages"] if isinstance(m.get("content"), str))
+    assert "Okafor" in blob  # the recalled fact reached the model's context
+    assert "Okafor" in reply
+
+
 def test_agent_records_assistant_tool_call_in_history(tmp_path):
     """Regression: the assistant's tool-call turn must be appended to the
     conversation before the tool result, or the model re-emits the same call
