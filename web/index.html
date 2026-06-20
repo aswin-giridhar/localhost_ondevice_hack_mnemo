@@ -1,48 +1,201 @@
-<!-- web/index.html -->
-<!doctype html><meta charset="utf-8"><title>Mnemo</title>
+<!doctype html>
+<!-- web/index.html — Mnemo: a local mind. "Lamplight & Ink" design. -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mnemo — a mind that stays on your machine</title>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<style>body{font:16px system-ui;max-width:720px;margin:2rem auto;padding:0 1rem}
-#badge{padding:.3rem .6rem;border-radius:6px;color:#fff;font-size:.8rem}
-.on{background:#16a34a}.off{background:#b91c1c}
-#log{white-space:pre-wrap;border:1px solid #ddd;border-radius:8px;padding:1rem;min-height:240px;margin:1rem 0}
-input[type=text]{width:70%}
-.row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.4rem 0}
-button{cursor:pointer}</style>
-<h1>Mnemo <span id="badge">…</span></h1>
-<div id="log"></div>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Hanken+Grotesk:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#13151C; --ink-2:#1B1E29; --ink-3:#232735; --line:#2E3344;
+  --parchment:#ECE5D6; --muted:#9197A6; --faint:#6B7180;
+  --lamp:#E9A23E; --lamp-deep:#C8821F; --lamp-soft:rgba(233,162,62,.13);
+  --secure:#74C49A; --secure-soft:rgba(116,196,154,.14);
+  --caution:#E08A7E; --caution-soft:rgba(224,138,126,.14);
+  --serif:"Fraunces",Georgia,serif;
+  --sans:"Hanken Grotesk",system-ui,-apple-system,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,monospace;
+  --r:14px;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{
+  background:var(--ink); color:var(--parchment); font-family:var(--sans);
+  font-size:16px; line-height:1.55; -webkit-font-smoothing:antialiased;
+  background-image:
+    radial-gradient(120% 80% at 50% -10%, rgba(233,162,62,.10), transparent 60%),
+    radial-gradient(90% 60% at 85% 0%, rgba(116,196,154,.05), transparent 55%);
+  background-attachment:fixed;
+}
+.wrap{max-width:780px; margin:0 auto; padding:clamp(20px,4vw,44px) clamp(16px,4vw,28px) 64px}
+.mast{display:flex; align-items:flex-start; justify-content:space-between; gap:18px;
+  padding-bottom:20px; border-bottom:1px solid var(--line); margin-bottom:24px;
+  animation:rise .7s cubic-bezier(.2,.7,.2,1) both}
+.brand{display:flex; flex-direction:column; gap:6px}
+.word{display:flex; align-items:baseline; gap:.5ch; font-family:var(--serif);
+  font-weight:500; font-size:clamp(34px,7vw,52px); letter-spacing:-.01em; line-height:.95}
+.word .o{position:relative; color:var(--lamp)}
+.word .o::after{content:""; position:absolute; inset:18% 14%; border-radius:50%;
+  background:radial-gradient(circle, rgba(233,162,62,.9), rgba(233,162,62,0) 70%);
+  filter:blur(2px); animation:breathe 4.5s ease-in-out infinite}
+.tag{font-size:14.5px; color:var(--muted); max-width:34ch}
+.tag em{color:var(--parchment); font-style:normal}
+#badge{font-family:var(--mono); font-size:12px; letter-spacing:.04em;
+  display:inline-flex; align-items:center; gap:8px; padding:8px 12px; border-radius:999px;
+  border:1px solid var(--line); white-space:nowrap; transition:.4s; user-select:none}
+#badge .dot{width:8px; height:8px; border-radius:50%; background:currentColor;
+  box-shadow:0 0 0 0 currentColor; animation:pulse 2.4s ease-out infinite}
+#badge .lbl{opacity:.62}
+#badge .val{font-weight:500}
+#badge.on{color:var(--secure); background:var(--secure-soft); border-color:rgba(116,196,154,.32)}
+#badge.off{color:var(--caution); background:var(--caution-soft); border-color:rgba(224,138,126,.32)}
+#badge.idle{color:var(--muted)}
+.stage{display:flex; flex-direction:column; gap:14px; min-height:200px; margin-bottom:8px}
+.empty{color:var(--faint); font-size:15px; padding:18px 2px; max-width:46ch}
+.empty b{color:var(--muted); font-weight:500}
+.turn{display:flex; flex-direction:column; max-width:84%; animation:rise .45s cubic-bezier(.2,.7,.2,1) both}
+.turn .who{font-family:var(--mono); font-size:10.5px; letter-spacing:.12em; text-transform:uppercase;
+  color:var(--faint); margin:0 0 5px 2px}
+.bubble{padding:12px 15px; border-radius:var(--r); border:1px solid var(--line);
+  background:var(--ink-2); font-size:15.5px; overflow-wrap:anywhere}
+.turn.me{align-self:flex-end; align-items:flex-end}
+.turn.me .bubble{background:var(--ink-3); border-color:#333a4d}
+.turn.mnemo .bubble{border-left:2px solid var(--lamp); border-radius:5px var(--r) var(--r) var(--r)}
+.turn.note{align-self:center; max-width:90%; align-items:center}
+.turn.note .bubble{background:transparent; border:1px dashed var(--line); color:var(--muted);
+  font-size:13.5px; font-family:var(--mono); text-align:center; border-radius:10px}
+.bubble.work::after{content:"recalling"; font-family:var(--mono); font-size:12px; color:var(--lamp); opacity:.85}
+.bubble.work span{display:none}
+.composer{position:sticky; bottom:0; padding-top:14px; background:linear-gradient(transparent, var(--ink) 30%)}
+form.bar{display:flex; gap:9px; align-items:stretch}
+#m{flex:1; min-width:0; background:var(--ink-2); color:var(--parchment); font:inherit;
+  border:1px solid var(--line); border-radius:12px; padding:13px 15px; outline:none; transition:.18s}
+#m::placeholder{color:var(--faint)}
+#m:focus{border-color:var(--lamp); box-shadow:0 0 0 3px var(--lamp-soft)}
+.send{flex:none; font-family:var(--sans); font-weight:600; font-size:15px; color:var(--ink);
+  background:var(--lamp); border:none; border-radius:12px; padding:0 20px; cursor:pointer; transition:.18s}
+.send:hover{background:var(--lamp-deep); color:#fff}
+.send:active{transform:translateY(1px)}
+.tools{display:flex; gap:8px; flex-wrap:wrap; margin-top:10px}
+.chip{display:inline-flex; align-items:center; gap:8px; font-size:13.5px; color:var(--parchment);
+  background:var(--ink-2); border:1px solid var(--line); border-radius:11px; padding:9px 13px;
+  cursor:pointer; transition:.16s}
+.chip:hover{border-color:var(--lamp); color:#fff}
+.chip svg{width:16px; height:16px; stroke:var(--lamp); fill:none; stroke-width:1.7;
+  stroke-linecap:round; stroke-linejoin:round}
+.chip input{display:none}
+.panel{margin-top:26px; border-top:1px solid var(--line); padding-top:22px}
+.phead{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px}
+.phead h2{font-family:var(--serif); font-weight:500; font-size:21px; margin:0}
+.count{font-family:var(--mono); font-size:12px; color:var(--lamp); background:var(--lamp-soft);
+  border:1px solid rgba(233,162,62,.28); padding:3px 9px; border-radius:999px}
+.teach{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:22px}
+#corr{flex:1; min-width:180px; background:var(--ink-2); color:var(--parchment); font:inherit; font-size:14px;
+  border:1px solid var(--line); border-radius:10px; padding:10px 13px; outline:none}
+#corr:focus{border-color:var(--lamp)}
+.ghost{font-family:var(--sans); font-size:13.5px; color:var(--muted); background:transparent;
+  border:1px solid var(--line); border-radius:10px; padding:10px 14px; cursor:pointer; transition:.16s}
+.ghost:hover{border-color:var(--lamp); color:var(--parchment)}
+.shelf{display:grid; gap:10px}
+.shelf .none{color:var(--faint); font-size:14px; font-family:var(--mono)}
+.card{position:relative; background:var(--ink-2); border:1px solid var(--line); border-radius:12px;
+  padding:13px 15px 13px 18px; font-size:14.5px; overflow-wrap:anywhere}
+.card::before{content:""; position:absolute; left:0; top:12px; bottom:12px; width:3px; border-radius:3px;
+  background:linear-gradient(var(--lamp), var(--lamp-deep)); opacity:.7}
+.card .k{font-family:var(--mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--faint); margin-bottom:4px}
+.card.photo .k{color:var(--secure)}
+.card.photo::before{background:linear-gradient(var(--secure), #4f9d74)}
+.card.fresh{animation:flare 1.6s ease-out}
+footer{margin-top:30px; color:var(--faint); font-family:var(--mono); font-size:11.5px; letter-spacing:.03em;
+  display:flex; gap:8px; flex-wrap:wrap; align-items:center}
+footer .pip{width:5px; height:5px; border-radius:50%; background:var(--lamp)}
+@keyframes rise{from{opacity:0; transform:translateY(8px)} to{opacity:1; transform:none}}
+@keyframes breathe{0%,100%{opacity:.55} 50%{opacity:1}}
+@keyframes pulse{0%{box-shadow:0 0 0 0 currentColor} 70%,100%{box-shadow:0 0 0 6px transparent}}
+@keyframes flare{0%{border-color:var(--lamp); box-shadow:0 0 0 3px var(--lamp-soft)} 100%{}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important; transition:none!important}}
+@media (max-width:520px){.turn{max-width:92%} .word{font-size:40px}}
+</style>
+</head>
+<body>
+<div class="wrap">
 
-<form id="f" class="row"><input id="m" type="text" placeholder="tell me or ask me something" autofocus>
-<button>send</button></form>
+  <header class="mast">
+    <div class="brand">
+      <div class="word">Mnem<span class="o">o</span></div>
+      <p class="tag">A personal assistant that <em>remembers across sessions</em> — running entirely on this machine.</p>
+    </div>
+    <div id="badge" class="idle"><span class="dot"></span><span class="lbl">net</span><span class="val">checking…</span></div>
+  </header>
 
-<div class="row">
-  <button id="cap">📷 Capture (device camera)</button>
-  <label>photo: <input id="photo" type="file" accept="image/*"></label>
-  <label>voice: <input id="audio" type="file" accept="audio/*"></label>
-</div>
+  <main class="stage" id="log" aria-live="polite">
+    <p class="empty">Tell Mnemo something to keep — <b>“Remember my landlord is Mr Okafor”</b> — then ask about it later, even with the network off. Show it a photo or speak to it; it files everything on the shelf below.</p>
+  </main>
 
-<div class="row">
-  <input id="corr" type="text" placeholder="correction for the last answer…">
-  <button id="fb">mark last wrong</button>
-  <button id="imp">⟳ improve from corrections</button>
+  <div class="composer">
+    <form id="f" class="bar" autocomplete="off">
+      <input id="m" type="text" placeholder="Tell Mnemo to remember, or ask what it knows…" autofocus aria-label="Message Mnemo">
+      <button class="send" type="submit">Send</button>
+    </form>
+    <div class="tools">
+      <button class="chip" id="cap" type="button" title="Capture a frame from this device's camera">
+        <svg viewBox="0 0 24 24"><path d="M3 7h3l2-2h8l2 2h3v12H3z"/><circle cx="12" cy="13" r="3.4"/></svg>Capture
+      </button>
+      <label class="chip" title="Send a photo to read and remember">
+        <svg viewBox="0 0 24 24"><path d="M4 5h16v14H4z"/><path d="m4 16 5-5 4 4 3-3 4 4"/><circle cx="9" cy="9" r="1.6"/></svg>Photo
+        <input id="photo" type="file" accept="image/*">
+      </label>
+      <label class="chip" title="Speak — upload a short recording">
+        <svg viewBox="0 0 24 24"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/></svg>Voice
+        <input id="audio" type="file" accept="audio/*">
+      </label>
+    </div>
+  </div>
+
+  <section class="panel">
+    <div class="phead"><h2>Memory shelf</h2><span class="count" id="count">0 kept</span></div>
+    <div class="teach">
+      <input id="corr" type="text" placeholder="If the last answer was wrong, say what it should be…" aria-label="Correction">
+      <button class="ghost" id="fb" type="button">Mark last wrong</button>
+      <button class="ghost" id="imp" type="button">⟳ Learn from corrections</button>
+    </div>
+    <div class="shelf" id="shelf"><p class="none">Nothing kept yet.</p></div>
+  </section>
+
+  <footer><span class="pip"></span> On-device · Ollama + Whisper + vision, no cloud. Memory persists between restarts.</footer>
 </div>
 
 <script>
 const log = document.getElementById('log');
-function say(s){ log.textContent += '\n' + s; log.scrollTop = log.scrollHeight; }
+const shelf = document.getElementById('shelf');
+const countEl = document.getElementById('count');
+let firstFacts = null;
 
-// Offline badge with a debounce latch: show OFFLINE the instant a probe fails,
-// and require 2 consecutive ONLINE reads before clearing it, so a flaky network
-// doesn't make the badge flicker mid-demo.
-let onlineStreak = 0;
-async function ping(){
-  let h; try{ h = await (await fetch('/health')).json(); }catch(e){ h = {offline:true}; }
-  const b = document.getElementById('badge');
-  if (h.offline) onlineStreak = 0; else onlineStreak++;
-  const offline = h.offline || onlineStreak < 2;
-  b.textContent = offline ? 'OFFLINE ✓' : 'ONLINE ✗';
-  b.className = offline ? 'on' : 'off';
+function clearEmpty(){ const e = log.querySelector('.empty'); if(e) e.remove(); }
+function turn(who, text, cls){
+  clearEmpty();
+  const t = document.createElement('div'); t.className = 'turn ' + (cls||'');
+  const w = document.createElement('p'); w.className = 'who'; w.textContent = who;
+  const b = document.createElement('div'); b.className = 'bubble'; b.textContent = text;
+  if(cls !== 'note') t.appendChild(w);
+  t.appendChild(b); log.appendChild(t);
+  t.scrollIntoView({behavior:'smooth', block:'end'});
+  return b;
 }
-setInterval(ping, 2000); ping();
+function working(who){
+  clearEmpty();
+  const t = document.createElement('div'); t.className = 'turn mnemo';
+  const w = document.createElement('p'); w.className = 'who'; w.textContent = who;
+  const b = document.createElement('div'); b.className = 'bubble work'; b.innerHTML = '<span></span>';
+  t.appendChild(w); t.appendChild(b); log.appendChild(t);
+  t.scrollIntoView({behavior:'smooth', block:'end'});
+  return b;
+}
+function settle(b, text){ b.classList.remove('work'); b.textContent = text; }
 
 async function postJSON(url, body){
   return (await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
@@ -53,28 +206,102 @@ async function postFile(url, file, field){
   return (await fetch(url, {method:'POST', body: fd})).json();
 }
 
-f.onsubmit = async e => { e.preventDefault(); const v = m.value; m.value='';
-  say('you: ' + v);
-  const r = await postJSON('/chat', {message: v}); say('mnemo: ' + r.reply); };
+/* Memory shelf — Mnemo's mind made visible. Refreshed after every turn. */
+function kind(text){ return text.trim().startsWith('[photo]') ? 'photo' : 'fact'; }
+async function refreshFacts(){
+  let facts = [];
+  try{ facts = (await (await fetch('/facts')).json()).facts || []; }catch(e){ return; }
+  const known = firstFacts; firstFacts = facts.slice();
+  countEl.textContent = facts.length + ' kept';
+  if(!facts.length){ shelf.innerHTML = '<p class="none">Nothing kept yet.</p>'; return; }
+  shelf.innerHTML = '';
+  facts.forEach(text => {
+    const isPhoto = kind(text) === 'photo';
+    const card = document.createElement('div');
+    card.className = 'card ' + (isPhoto ? 'photo' : '');
+    const k = document.createElement('div'); k.className = 'k';
+    k.textContent = isPhoto ? 'seen' : 'remembered';
+    const body = document.createElement('div');
+    body.textContent = isPhoto ? text.replace(/^\[photo\]\s*/, '') : text;
+    card.appendChild(k); card.appendChild(body);
+    if(known && !known.includes(text)) card.classList.add('fresh');
+    shelf.appendChild(card);
+  });
+}
+
+/* Offline badge with a debounce latch: show the OFFLINE (secure) state the
+   instant a probe fails, and require 2 consecutive ONLINE reads before
+   clearing it, so a flaky network doesn't make the badge flicker mid-demo.
+   In Mnemo, offline is the GOOD state — it means nothing can leave the box. */
+let onlineStreak = 0;
+async function ping(){
+  let h; try{ h = await (await fetch('/health')).json(); }catch(e){ h = {offline:true}; }
+  const badge = document.getElementById('badge');
+  if(h.offline) onlineStreak = 0; else onlineStreak++;
+  const secure = h.offline || onlineStreak < 2;
+  badge.className = secure ? 'on' : 'off';
+  badge.querySelector('.lbl').textContent = secure ? 'sealed' : 'exposed';
+  badge.querySelector('.val').textContent = secure ? 'OFFLINE ✓' : 'ONLINE ✗';
+}
+setInterval(ping, 2000); ping();
+
+document.getElementById('f').onsubmit = async e => {
+  e.preventDefault(); const v = document.getElementById('m').value.trim(); if(!v) return;
+  document.getElementById('m').value = '';
+  turn('you', v, 'me');
+  const b = working('mnemo');
+  try{ const r = await postJSON('/chat', {message: v}); settle(b, r.reply || '(no reply)'); }
+  catch(err){ settle(b, 'Could not reach Mnemo. Is the server running?'); }
+  refreshFacts();
+};
 
 document.getElementById('cap').onclick = async () => {
-  say('📷 capturing from device camera…');
-  const r = await postJSON('/capture', {}); say('mnemo: ' + (r.result || r.error)); };
+  turn('camera', 'Capturing a frame from this device…', 'note');
+  const b = working('mnemo');
+  try{ const r = await postJSON('/capture', {}); settle(b, r.result || r.error || 'Capture failed.'); }
+  catch(err){ settle(b, 'Capture failed — no camera reachable.'); }
+  refreshFacts();
+};
 
 document.getElementById('photo').onchange = async e => {
-  const file = e.target.files[0]; if(!file) return; say('📷 uploading ' + file.name + '…');
-  const r = await postFile('/photo', file, 'file'); say('mnemo: ' + (r.result || r.error)); };
+  const file = e.target.files[0]; if(!file) return;
+  turn('photo', 'Reading ' + file.name + '…', 'note');
+  const b = working('mnemo');
+  try{ const r = await postFile('/photo', file, 'file'); settle(b, r.result || r.error || 'Could not read that photo.'); }
+  catch(err){ settle(b, 'Could not read that photo.'); }
+  e.target.value = ''; refreshFacts();
+};
 
 document.getElementById('audio').onchange = async e => {
-  const file = e.target.files[0]; if(!file) return; say('🎙 transcribing ' + file.name + '…');
-  const r = await postFile('/voice', file, 'file');
-  say('you (voice): ' + r.transcript); say('mnemo: ' + r.reply); };
+  const file = e.target.files[0]; if(!file) return;
+  turn('voice', 'Transcribing ' + file.name + '…', 'note');
+  const b = working('mnemo');
+  try{
+    const r = await postFile('/voice', file, 'file');
+    if(r.transcript) turn('you (voice)', r.transcript, 'me');
+    settle(b, r.reply || 'Heard nothing to act on.');
+  }catch(err){ settle(b, 'Could not transcribe that recording.'); }
+  e.target.value = ''; refreshFacts();
+};
 
 document.getElementById('fb').onclick = async () => {
-  const c = document.getElementById('corr').value;
-  await postJSON('/feedback', {correction: c}); say('(noted correction: ' + c + ')'); };
+  const c = document.getElementById('corr').value.trim();
+  if(!c){ document.getElementById('corr').focus(); return; }
+  await postJSON('/feedback', {correction: c});
+  turn('teach', 'Noted — last answer marked wrong: “' + c + '”', 'note');
+  document.getElementById('corr').value = '';
+};
 
 document.getElementById('imp').onclick = async () => {
-  const r = await postJSON('/improve', {});
-  say('(learned ' + (r.learned||[]).length + ' rule(s): ' + JSON.stringify(r.learned) + ')'); };
+  const b = working('mnemo');
+  try{
+    const r = await postJSON('/improve', {});
+    const n = (r.learned || []).length;
+    settle(b, n ? ('Learned ' + n + ' rule(s) from your corrections.') : 'No corrections to learn from yet.');
+  }catch(err){ settle(b, 'Could not run the improve loop.'); }
+};
+
+refreshFacts();
 </script>
+</body>
+</html>

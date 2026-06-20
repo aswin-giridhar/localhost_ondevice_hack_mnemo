@@ -35,7 +35,7 @@ def _is_offline() -> bool:
 
 @app.get("/", response_class=HTMLResponse)
 def index():
-    return Path(__file__).resolve().parents[2].joinpath("web/index.html").read_text()
+    return Path(__file__).resolve().parents[2].joinpath("web/index.html").read_text(encoding="utf-8")
 
 
 @app.post("/chat")
