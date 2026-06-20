@@ -66,7 +66,7 @@ class LanceMemory:
             return []
         return [
             Fact(r["id"], r["text"], json.loads(r["meta"]))
-            for r in tbl.to_pandas().to_dict("records")
+            for r in tbl.to_arrow().to_pylist()
         ]
 
 
