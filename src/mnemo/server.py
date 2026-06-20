@@ -23,9 +23,10 @@ class ChatIn(BaseModel):
 
 
 def _is_offline() -> bool:
+    # Per-call timeout only — never mutate the process-wide default socket
+    # timeout (that would also throttle the Ollama / LanceDB connections).
     try:
-        socket.setdefaulttimeout(1)
-        socket.create_connection(("1.1.1.1", 53)).close()
+        socket.create_connection(("1.1.1.1", 53), timeout=1).close()
         return False
     except OSError:
         return True
@@ -59,3 +60,12 @@ async def voice_in(file: UploadFile):
     tmp.write_bytes(await file.read())
     text = voice.transcribe(str(tmp))
     return {"transcript": text, "reply": AGENT.handle(text)}
+
+
+@app.post("/photo")
+async def photo_in(file: UploadFile):
+    from . import tools
+
+    p = config.data_path("_last.jpg", SETTINGS)
+    p.write_bytes(await file.read())
+    return {"result": tools.run("ingest_photo", {"path": str(p)}, MEM)}

@@ -15,6 +15,11 @@ SCHEMAS = [
         "name": "list_facts",
         "description": "List everything currently remembered.",
         "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
+        "name": "ingest_photo",
+        "description": "Validate and read a photo, then remember what it shows.",
+        "parameters": {"type": "object", "properties": {
+            "path": {"type": "string"}}, "required": ["path"]}}},
 ]
 
 
