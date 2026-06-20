@@ -5,10 +5,18 @@ from pathlib import Path
 
 @dataclass
 class Settings:
+    # Fallback chain: LFM2 is a purpose-built 1.2B tool-caller (tiny VRAM,
+    # SLM-default per the agentic-SLM survey); phi4-mini is the reasoning
+    # fallback; the rest are whatever is already pulled locally.
     llm_models: list[str] = field(
-        default_factory=lambda: ["phi4-mini", "qwen3:4b", "llama3.2:3b"]
+        default_factory=lambda: os.getenv(
+            "MNEMO_LLM_MODELS",
+            "LFM2-1.2B-Tool,phi4-mini,qwen3:4b,qwen3.5:0.8b",
+        ).split(",")
     )
-    embed_model: str = "nomic-embed-text"
+    embed_model: str = field(
+        default_factory=lambda: os.getenv("MNEMO_EMBED_MODEL", "nomic-embed-text")
+    )
     data_dir: Path = field(
         default_factory=lambda: Path(os.getenv("MNEMO_DATA_DIR", "data"))
     )
