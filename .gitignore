@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+
+# Models & runtime data (never commit weights or local stores)
+data/
+*.gguf
+*.bin
+*.safetensors
+models/
+
+# Traces & local memory stores
+traces.jsonl
+*.lance/
+*.sqlite
+*.db
+*.kuzu/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

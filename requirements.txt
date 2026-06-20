@@ -1,0 +1,17 @@
+# Inference & agent
+ollama>=0.3.0
+# Memory (primary backend + fallback)
+cognee>=0.1.0          # configured fully local; see config.py
+lancedb>=0.13.0        # fallback vector store
+sentence-transformers>=3.0.0  # fallback embeddings
+# Voice
+faster-whisper>=1.0.0
+sounddevice>=0.4.6
+# Vision
+pillow>=10.0.0
+# Surface
+fastapi>=0.115.0
+uvicorn>=0.30.0
+python-multipart>=0.0.9
+# Testing
+pytest>=8.0.0
