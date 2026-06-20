@@ -49,3 +49,13 @@ def facts():
 @app.get("/health")
 def health():
     return {"offline": _is_offline()}
+
+
+@app.post("/voice")
+async def voice_in(file: UploadFile):
+    from . import voice
+
+    tmp = config.data_path("_last.wav", SETTINGS)
+    tmp.write_bytes(await file.read())
+    text = voice.transcribe(str(tmp))
+    return {"transcript": text, "reply": AGENT.handle(text)}
