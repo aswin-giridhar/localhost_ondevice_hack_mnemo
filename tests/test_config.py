@@ -4,7 +4,14 @@ from mnemo import config
 def test_settings_defaults(tmp_path, monkeypatch):
     monkeypatch.setenv("MNEMO_DATA_DIR", str(tmp_path))
     s = config.load_settings()
-    assert s.llm_models[0] == "phi4-mini"
+    # LFM2 leads the chain (purpose-built tool-caller); phi4-mini is the fallback.
+    assert s.llm_models[0] == "LFM2-1.2B-Tool"
+    assert "phi4-mini" in s.llm_models
     assert s.embed_model == "nomic-embed-text"
     assert s.memory_backend in ("cognee", "lance")
     assert config.data_path("traces.jsonl", s).parent == tmp_path
+
+
+def test_llm_models_overridable(monkeypatch):
+    monkeypatch.setenv("MNEMO_LLM_MODELS", "a,b,c")
+    assert config.load_settings().llm_models == ["a", "b", "c"]
