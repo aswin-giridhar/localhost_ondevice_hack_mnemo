@@ -38,13 +38,21 @@ def test_live_embed_is_real():
 
 
 def test_live_agent_remember_then_recall_after_restart(tmp_path):
-    p = str(tmp_path / "m")
-    Agent(LanceMemory(real_embed, p)).handle("Remember that my landlord is Mr Okafor")
-    # New memory instance over the same path == process restart.
-    mem2 = LanceMemory(real_embed, p)
-    assert any("Okafor" in f.text for f in mem2.all_facts())
-    reply = Agent(mem2).handle("Who is my landlord?")
-    assert "okafor" in reply.lower()
+    # Recommended production routing: LFM2-1.2B drives tool calls, phi4-mini
+    # synthesizes the final answer from injected memory (a 1.2B model alone
+    # sometimes refuses to use recalled facts). Both are real, pulled models.
+    old_synth = config.SETTINGS.synth_model
+    config.SETTINGS.synth_model = "phi4-mini"
+    try:
+        p = str(tmp_path / "m")
+        Agent(LanceMemory(real_embed, p)).handle("Remember that my landlord is Mr Okafor")
+        # New memory instance over the same path == process restart.
+        mem2 = LanceMemory(real_embed, p)
+        assert any("Okafor" in f.text for f in mem2.all_facts())
+        reply = Agent(mem2).handle("Who is my landlord?")
+        assert "okafor" in reply.lower()
+    finally:
+        config.SETTINGS.synth_model = old_synth
 
 
 def test_live_vision_extract_reads_real_image(tmp_path):

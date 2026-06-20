@@ -57,7 +57,9 @@ class Agent:
             facts = "\n".join(f"- {f.text}" for f in recalled)
             messages.append({
                 "role": "system",
-                "content": "Relevant things you remember about the user:\n" + facts})
+                "content": ("These are facts you KNOW about the user (your memory). "
+                            "Answer the question directly from them. Never say you "
+                            "cannot recall — the facts are right here:\n" + facts)})
         messages.append({"role": "user", "content": user_input})
         calls_made = []
         for _ in range(self.max_steps):
@@ -84,7 +86,8 @@ class Agent:
                     messages.append(
                         {"role": "tool", "content": result, "tool_name": tc["name"]})
                 continue
-            reply = self._finalize(messages, out["content"], bool(calls_made))
+            reply = self._finalize(
+                messages, out["content"], bool(calls_made) or bool(recalled))
             if self.trace:
                 self.trace.log(
                     {"input": user_input, "calls": calls_made, "reply": reply, "ok": True})
@@ -95,15 +98,16 @@ class Agent:
                 {"input": user_input, "calls": calls_made, "reply": reply, "ok": False})
         return reply
 
-    def _finalize(self, messages, content: str, used_tools: bool) -> str:
+    def _finalize(self, messages, content: str, route: bool) -> str:
         """Optionally route the final answer to a stronger synthesis model.
 
         Tool-calling stays on the chain (LFM2 leads), but a 1.2B model writes
-        terse/empty final answers; if MNEMO_SYNTH_MODEL is set we regenerate the
-        final reply with it after tools have run. Off by default -> no extra call.
+        terse answers and sometimes refuses to use injected memory. If
+        MNEMO_SYNTH_MODEL is set we regenerate the final reply with it whenever
+        tools ran OR facts were injected. Off by default -> no extra call.
         """
         synth = config.SETTINGS.synth_model
-        if synth and used_tools:
+        if synth and route:
             try:
                 out = model.chat(messages, models=[synth])
                 if out["content"].strip():
