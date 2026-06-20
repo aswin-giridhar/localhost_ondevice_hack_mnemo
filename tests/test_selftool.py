@@ -42,6 +42,19 @@ def test_validate_rejects_wrong_name():
         improve.validate_tool_code(SAFE, "not_shout")
 
 
+def test_validate_rejects_format_escape():
+    # "{0.__class__}".format(x) hides a dunder in a string constant — must block.
+    code = 'def bad(args, mem):\n    return "{0.__class__}".format(args)\n'
+    with pytest.raises(ValueError):
+        improve.validate_tool_code(code, "bad")
+
+
+def test_validate_rejects_fstring():
+    code = 'def bad(args, mem):\n    return f"{args}"\n'
+    with pytest.raises(ValueError):
+        improve.validate_tool_code(code, "bad")
+
+
 def test_load_and_call_safe_tool():
     fn = improve.load_tool(SAFE, "shout")
     assert fn({"text": "hi"}, None) == "HI"

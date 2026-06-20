@@ -29,6 +29,9 @@ _FORBIDDEN_NAMES = {
     "vars", "getattr", "setattr", "delattr", "input", "exit", "quit", "help",
     "breakpoint", "memoryview", "__builtins__",
 }
+# Method names that enable string-format sandbox escapes
+# (e.g. "{0.__class__}".format(obj)) or type-graph traversal.
+_FORBIDDEN_ATTRS = {"format", "format_map", "mro", "subclasses"}
 
 
 def analyze(traces: list[dict]) -> list[str]:
@@ -54,7 +57,14 @@ def validate_tool_code(code: str, func_name: str) -> None:
 
     Safety = static AST allowlist applied BEFORE execution: a single top-level
     function with the expected name, no imports, no dunder attribute access, no
-    use of forbidden builtins/calls.
+    f-strings/.format (string-format escapes), no use of forbidden
+    builtins/calls.
+
+    NOTE: this is defense-in-depth, NOT a true security boundary. In-process
+    Python sandboxing cannot be made fully escape-proof. The feature is OFF by
+    default (MNEMO_ENABLE_SELFTOOL) and intended for a single-user offline demo;
+    for untrusted input, run generated code in an OS-level sandbox (nsjail /
+    firejail / gVisor / a no-network read-only container) instead.
     """
     try:
         tree = ast.parse(code)
@@ -68,8 +78,13 @@ def validate_tool_code(code: str, func_name: str) -> None:
     for node in ast.walk(tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             raise ValueError("imports are not allowed in learned tools")
-        if isinstance(node, ast.Attribute) and node.attr.startswith("__"):
-            raise ValueError("dunder attribute access is not allowed")
+        if isinstance(node, (ast.JoinedStr, ast.FormattedValue)):
+            raise ValueError("f-strings are not allowed in learned tools")
+        if isinstance(node, ast.Attribute):
+            if node.attr.startswith("__"):
+                raise ValueError("dunder attribute access is not allowed")
+            if node.attr in _FORBIDDEN_ATTRS:
+                raise ValueError(f"attribute {node.attr!r} is not allowed")
         if isinstance(node, ast.Name) and node.id in _FORBIDDEN_NAMES:
             raise ValueError(f"use of {node.id!r} is not allowed")
 
@@ -77,8 +92,9 @@ def validate_tool_code(code: str, func_name: str) -> None:
 def load_tool(code: str, func_name: str):
     """Validate then exec `code` in a restricted namespace; return the callable."""
     validate_tool_code(code, func_name)
-    ns: dict = {"__builtins__": _SAFE_BUILTINS}
-    exec(compile(code, "<learned_tool>", "exec"), ns)  # safe: AST-validated above
+    # Fresh copy per exec so one tool can't mutate builtins seen by later tools.
+    ns: dict = {"__builtins__": dict(_SAFE_BUILTINS)}
+    exec(compile(code, "<learned_tool>", "exec"), ns)  # AST-validated above
     return ns[func_name]
 
 
