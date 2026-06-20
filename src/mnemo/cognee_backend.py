@@ -19,13 +19,20 @@ import os
 #      first).
 #   4. HUGGINGFACE_TOKENIZER makes cognee load the tokenizer via the
 #      `transformers` lib, which is NOT a cognee dependency -> `pip install
-#      transformers` (this was the final blocker hit in the spike).
-# STATUS: routing is confirmed local (no phone-home across 3 gate runs), but a
-# green round-trip+restart gate was NOT achieved within the time/cost box. The
-# remaining blocker is purely a missing dep (transformers), not a phone-home or
-# a fundamental issue. Per the plan's abort rule the shipped default stays
-# MNEMO_MEMORY_BACKEND=lance. To finish: `pip install transformers`, warm
-# phi4-mini, re-run the offline gate, then flip the default if it passes.
+#      transformers`.
+#   5. With (1-4) fixed, cognify() RAN FULLY LOCAL (phi4-mini did graph
+#      extraction: nodes/edges produced, OpenAI sentinel never used). The last
+#      blocker hit: cognee's OllamaEmbeddingEngine POSTs to EMBEDDING_ENDPOINT
+#      verbatim and got `ContentTypeError: 404` at 'http://localhost:11434/v1'.
+#      Ollama's OpenAI-compatible embeddings are at /v1/embeddings; set
+#      EMBEDDING_ENDPOINT to "http://localhost:11434" (no /v1) or the native
+#      "http://localhost:11434/api/embeddings" and re-run. (UNVERIFIED fix.)
+# STATUS: routing confirmed local across 4 gate runs (no phone-home); cognify
+# works offline. NOT yet a green round-trip+restart gate -- last blocker is the
+# embeddings endpoint URL (config string, #5). Per the plan's abort rule the
+# shipped default stays MNEMO_MEMORY_BACKEND=lance (the agent is identical
+# either way). To finish: fix EMBEDDING_ENDPOINT per #5, warm phi4-mini, re-run
+# the offline gate, then flip the default if it passes.
 os.environ.setdefault("LLM_PROVIDER", "ollama")
 os.environ.setdefault("LLM_MODEL", "phi4-mini")
 os.environ.setdefault("LLM_ENDPOINT", "http://localhost:11434/v1")
