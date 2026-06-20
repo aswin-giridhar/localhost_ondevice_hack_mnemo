@@ -11,7 +11,8 @@ class Settings:
     llm_models: list[str] = field(
         default_factory=lambda: os.getenv(
             "MNEMO_LLM_MODELS",
-            "LFM2-1.2B-Tool,phi4-mini,qwen3:4b,qwen3.5:0.8b",
+            # First entry is the exact Ollama tag of the pulled LFM2 tool-caller.
+            "hf.co/LiquidAI/LFM2-1.2B-Tool-GGUF,phi4-mini,qwen3:4b,qwen3.5:0.8b",
         ).split(",")
     )
     embed_model: str = field(

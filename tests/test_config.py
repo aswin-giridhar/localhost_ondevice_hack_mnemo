@@ -5,7 +5,7 @@ def test_settings_defaults(tmp_path, monkeypatch):
     monkeypatch.setenv("MNEMO_DATA_DIR", str(tmp_path))
     s = config.load_settings()
     # LFM2 leads the chain (purpose-built tool-caller); phi4-mini is the fallback.
-    assert s.llm_models[0] == "LFM2-1.2B-Tool"
+    assert s.llm_models[0] == "hf.co/LiquidAI/LFM2-1.2B-Tool-GGUF"
     assert "phi4-mini" in s.llm_models
     assert s.embed_model == "nomic-embed-text"
     assert s.memory_backend in ("cognee", "lance")
