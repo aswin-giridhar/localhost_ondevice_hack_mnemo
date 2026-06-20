@@ -6,6 +6,21 @@
 # OpenAI for entity extraction + embeddings.
 import os
 
+# --- Cognee local-only config (verified against cognee 1.1.3, 2026-06-20) ----
+# Spike findings — these are the env vars cognee 1.1.3 actually needs to run
+# fully offline. The naive 3-var config in the plan is NOT enough on 1.1.3:
+#   1. Ollama EMBEDDINGS also require EMBEDDING_DIMENSIONS + HUGGINGFACE_TOKENIZER
+#      (used for token counting), else cognee raises a LLMConfig ValidationError.
+#   2. cognify() does structured entity extraction via BAML, which defaults to
+#      OpenAI (gpt-5-mini). Without BAML_LLM_* pointed at Ollama, cognify phones
+#      home. (Confirmed: with these set, the OpenAI sentinel key was never used.)
+#   3. cognee runs a 30s LLM connection test at startup; phi4-mini cold-load on a
+#      4GB box exceeds it -> COGNEE_SKIP_CONNECTION_TEST=true (warm the model
+#      first).
+# STATUS: routing is confirmed local (no phone-home), but a green round-trip+
+# restart gate was NOT achieved within the time/cost box -> per the plan's abort
+# rule the shipped default stays MNEMO_MEMORY_BACKEND=lance. This file is a
+# near-complete, UNVERIFIED swap; finish the gate before flipping the default.
 os.environ.setdefault("LLM_PROVIDER", "ollama")
 os.environ.setdefault("LLM_MODEL", "phi4-mini")
 os.environ.setdefault("LLM_ENDPOINT", "http://localhost:11434/v1")
@@ -13,6 +28,13 @@ os.environ.setdefault("LLM_API_KEY", "ollama")  # dummy; never leaves localhost
 os.environ.setdefault("EMBEDDING_PROVIDER", "ollama")
 os.environ.setdefault("EMBEDDING_MODEL", "nomic-embed-text")
 os.environ.setdefault("EMBEDDING_ENDPOINT", "http://localhost:11434/v1")
+os.environ.setdefault("EMBEDDING_DIMENSIONS", "768")
+os.environ.setdefault("HUGGINGFACE_TOKENIZER", "nomic-ai/nomic-embed-text-v1.5")
+os.environ.setdefault("BAML_LLM_PROVIDER", "ollama")
+os.environ.setdefault("BAML_LLM_MODEL", "phi4-mini")
+os.environ.setdefault("BAML_LLM_ENDPOINT", "http://localhost:11434/v1")
+os.environ.setdefault("BAML_LLM_API_KEY", "ollama")
+os.environ.setdefault("COGNEE_SKIP_CONNECTION_TEST", "true")
 os.environ.setdefault("VECTOR_DB_PROVIDER", "lancedb")
 os.environ.setdefault("GRAPH_DATABASE_PROVIDER", "kuzu")
 
