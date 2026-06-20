@@ -17,10 +17,15 @@ import os
 #   3. cognee runs a 30s LLM connection test at startup; phi4-mini cold-load on a
 #      4GB box exceeds it -> COGNEE_SKIP_CONNECTION_TEST=true (warm the model
 #      first).
-# STATUS: routing is confirmed local (no phone-home), but a green round-trip+
-# restart gate was NOT achieved within the time/cost box -> per the plan's abort
-# rule the shipped default stays MNEMO_MEMORY_BACKEND=lance. This file is a
-# near-complete, UNVERIFIED swap; finish the gate before flipping the default.
+#   4. HUGGINGFACE_TOKENIZER makes cognee load the tokenizer via the
+#      `transformers` lib, which is NOT a cognee dependency -> `pip install
+#      transformers` (this was the final blocker hit in the spike).
+# STATUS: routing is confirmed local (no phone-home across 3 gate runs), but a
+# green round-trip+restart gate was NOT achieved within the time/cost box. The
+# remaining blocker is purely a missing dep (transformers), not a phone-home or
+# a fundamental issue. Per the plan's abort rule the shipped default stays
+# MNEMO_MEMORY_BACKEND=lance. To finish: `pip install transformers`, warm
+# phi4-mini, re-run the offline gate, then flip the default if it passes.
 os.environ.setdefault("LLM_PROVIDER", "ollama")
 os.environ.setdefault("LLM_MODEL", "phi4-mini")
 os.environ.setdefault("LLM_ENDPOINT", "http://localhost:11434/v1")
