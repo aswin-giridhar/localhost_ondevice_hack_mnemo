@@ -65,11 +65,28 @@ async def voice_in(file: UploadFile):
 
 @app.post("/photo")
 async def photo_in(file: UploadFile):
+    # Phone-as-camera path: the device camera (e.g. S24 Ultra) POSTs a frame
+    # over LAN. Real image bytes -> validate + VLM extract + remember.
     from . import tools
 
     p = config.data_path("_last.jpg", SETTINGS)
     p.write_bytes(await file.read())
-    return {"result": tools.run("ingest_photo", {"path": str(p)}, MEM)}
+    try:
+        return {"result": tools.run("ingest_photo", {"path": str(p)}, MEM)}
+    except Exception as e:
+        return {"error": f"photo ingest failed: {e}"}
+
+
+@app.post("/capture")
+def capture_photo():
+    # Laptop device-camera path: grab a frame locally via OpenCV. Returns a
+    # clear error if no camera is reachable (e.g. inside WSL2).
+    from . import vision
+
+    try:
+        return {"result": vision.capture_and_ingest(MEM)}
+    except Exception as e:
+        return {"error": f"camera capture failed: {e}"}
 
 
 @app.post("/feedback")

@@ -1,16 +1,35 @@
 # tests/test_vision.py
-from unittest.mock import patch
+# Unit tests for vision.validate use REAL image bytes (generated with PIL), not
+# mocks. Real camera capture and real VLM extraction are exercised in
+# tests/integration/test_live.py (they need a camera / Ollama).
+from PIL import Image
 
 from mnemo import vision
 
 
-def test_validate_then_extract(tmp_path):
-    img = tmp_path / "r.jpg"
-    img.write_bytes(b"\xff\xd8\xff")
-    with patch("mnemo.vision._captur_validate", return_value={"ok": True, "reasons": []}):
-        v = vision.validate(str(img))
+def _make_jpeg(path, size=(120, 90), color=(200, 120, 40)):
+    Image.new("RGB", size, color).save(path, "JPEG")
+    return str(path)
+
+
+def test_validate_accepts_real_image(tmp_path):
+    p = _make_jpeg(tmp_path / "real.jpg")
+    v = vision.validate(p)
     assert v["ok"] is True
-    with patch("mnemo.vision.ollama.chat",
-               return_value={"message": {"content": "Receipt: Tesco £4.20"}}):
-        text = vision.extract(str(img))
-    assert "Tesco" in text
+    assert v["meta"]["width"] == 120 and v["meta"]["height"] == 90
+    assert any("decoded OK" in r for r in v["reasons"])
+
+
+def test_validate_rejects_corrupt(tmp_path):
+    bad = tmp_path / "bad.jpg"
+    bad.write_bytes(b"\xff\xd8\xff not a real jpeg")
+    v = vision.validate(str(bad))
+    assert v["ok"] is False
+    assert any("undecodable" in r or "corrupt" in r for r in v["reasons"])
+
+
+def test_validate_rejects_too_small(tmp_path):
+    p = _make_jpeg(tmp_path / "tiny.jpg", size=(8, 8))
+    v = vision.validate(p)
+    assert v["ok"] is False
+    assert any("too small" in r for r in v["reasons"])

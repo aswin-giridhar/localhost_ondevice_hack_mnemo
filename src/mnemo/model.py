@@ -3,13 +3,16 @@ import ollama
 from .config import SETTINGS
 
 
-def chat(messages: list[dict], tools: list[dict] | None = None) -> dict:
+def chat(messages: list[dict], tools: list[dict] | None = None,
+         models: list[str] | None = None) -> dict:
     """Call the local model, walking the fallback chain on any failure.
 
-    Returns {"content": str, "tool_calls": [{"name": str, "arguments": dict}]}.
+    `models` overrides the fallback chain for this call (used for routing, e.g.
+    a stronger synthesis model). Returns
+    {"content": str, "tool_calls": [{"name": str, "arguments": dict}]}.
     """
     last_err = None
-    for tag in SETTINGS.llm_models:
+    for tag in (models or SETTINGS.llm_models):
         try:
             resp = ollama.chat(model=tag, messages=messages, tools=tools)
             msg = resp["message"]

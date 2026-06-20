@@ -1,22 +1,80 @@
 <!-- web/index.html -->
 <!doctype html><meta charset="utf-8"><title>Mnemo</title>
-<style>body{font:16px system-ui;max-width:680px;margin:2rem auto}
-#badge{padding:.3rem .6rem;border-radius:6px;color:#fff}
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{font:16px system-ui;max-width:720px;margin:2rem auto;padding:0 1rem}
+#badge{padding:.3rem .6rem;border-radius:6px;color:#fff;font-size:.8rem}
 .on{background:#16a34a}.off{background:#b91c1c}
-#log{white-space:pre-wrap;border:1px solid #ddd;padding:1rem;min-height:240px}
-input{width:80%}</style>
+#log{white-space:pre-wrap;border:1px solid #ddd;border-radius:8px;padding:1rem;min-height:240px;margin:1rem 0}
+input[type=text]{width:70%}
+.row{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin:.4rem 0}
+button{cursor:pointer}</style>
 <h1>Mnemo <span id="badge">…</span></h1>
 <div id="log"></div>
-<form id="f"><input id="m" placeholder="tell me or ask me something" autofocus>
+
+<form id="f" class="row"><input id="m" type="text" placeholder="tell me or ask me something" autofocus>
 <button>send</button></form>
+
+<div class="row">
+  <button id="cap">📷 Capture (device camera)</button>
+  <label>photo: <input id="photo" type="file" accept="image/*"></label>
+  <label>voice: <input id="audio" type="file" accept="audio/*"></label>
+</div>
+
+<div class="row">
+  <input id="corr" type="text" placeholder="correction for the last answer…">
+  <button id="fb">mark last wrong</button>
+  <button id="imp">⟳ improve from corrections</button>
+</div>
+
 <script>
-async function ping(){let h=await (await fetch('/health')).json();
-let b=document.getElementById('badge');
-b.textContent=h.offline?'OFFLINE ✓':'ONLINE ✗';b.className=h.offline?'on':'off';}
-setInterval(ping,2000);ping();
-f.onsubmit=async e=>{e.preventDefault();let v=m.value;m.value='';
-log.textContent+='\nyou: '+v;
-let r=await (await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},
-body:JSON.stringify({message:v})})).json();
-log.textContent+='\nmnemo: '+r.reply;}
+const log = document.getElementById('log');
+function say(s){ log.textContent += '\n' + s; log.scrollTop = log.scrollHeight; }
+
+// Offline badge with a debounce latch: show OFFLINE the instant a probe fails,
+// and require 2 consecutive ONLINE reads before clearing it, so a flaky network
+// doesn't make the badge flicker mid-demo.
+let onlineStreak = 0;
+async function ping(){
+  let h; try{ h = await (await fetch('/health')).json(); }catch(e){ h = {offline:true}; }
+  const b = document.getElementById('badge');
+  if (h.offline) onlineStreak = 0; else onlineStreak++;
+  const offline = h.offline || onlineStreak < 2;
+  b.textContent = offline ? 'OFFLINE ✓' : 'ONLINE ✗';
+  b.className = offline ? 'on' : 'off';
+}
+setInterval(ping, 2000); ping();
+
+async function postJSON(url, body){
+  return (await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify(body)})).json();
+}
+async function postFile(url, file, field){
+  const fd = new FormData(); fd.append(field, file, file.name);
+  return (await fetch(url, {method:'POST', body: fd})).json();
+}
+
+f.onsubmit = async e => { e.preventDefault(); const v = m.value; m.value='';
+  say('you: ' + v);
+  const r = await postJSON('/chat', {message: v}); say('mnemo: ' + r.reply); };
+
+document.getElementById('cap').onclick = async () => {
+  say('📷 capturing from device camera…');
+  const r = await postJSON('/capture', {}); say('mnemo: ' + (r.result || r.error)); };
+
+document.getElementById('photo').onchange = async e => {
+  const file = e.target.files[0]; if(!file) return; say('📷 uploading ' + file.name + '…');
+  const r = await postFile('/photo', file, 'file'); say('mnemo: ' + (r.result || r.error)); };
+
+document.getElementById('audio').onchange = async e => {
+  const file = e.target.files[0]; if(!file) return; say('🎙 transcribing ' + file.name + '…');
+  const r = await postFile('/voice', file, 'file');
+  say('you (voice): ' + r.transcript); say('mnemo: ' + r.reply); };
+
+document.getElementById('fb').onclick = async () => {
+  const c = document.getElementById('corr').value;
+  await postJSON('/feedback', {correction: c}); say('(noted correction: ' + c + ')'); };
+
+document.getElementById('imp').onclick = async () => {
+  const r = await postJSON('/improve', {});
+  say('(learned ' + (r.learned||[]).length + ' rule(s): ' + JSON.stringify(r.learned) + ')'); };
 </script>

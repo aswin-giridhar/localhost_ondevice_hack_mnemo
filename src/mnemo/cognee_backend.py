@@ -52,6 +52,10 @@ os.environ.setdefault("VECTOR_DB_PROVIDER", "lancedb")
 os.environ.setdefault("GRAPH_DATABASE_PROVIDER", "kuzu")
 
 import asyncio
+import json
+import threading
+import uuid
+from pathlib import Path
 
 from .memory import Fact
 
@@ -61,8 +65,12 @@ class CogneeMemory:
 
     Cognee's API is async; we wrap it onto the sync remember/recall/all_facts
     interface so the agent never knows which backend is live.
-    (API names may shift by Cognee version; the 45-min spike covers reconciling
-    `cognee.add`/`cognify`/`search` to the installed version's quickstart.)
+      - recall(): real semantic retrieval via Cognee CHUNKS search.
+      - remember(): adds to Cognee + runs the slow graph-extraction (cognify) in
+        a BACKGROUND thread so the agent/UI never blocks on it.
+      - all_facts(): reads a write-through JSON manifest of everything stored
+        (Cognee's vector engine has no get-all primitive; the manifest is a real,
+        persisted record — exact and restart-safe).
     """
 
     def __init__(self, settings):
@@ -70,19 +78,44 @@ class CogneeMemory:
 
         self.cognee = cognee
         self._loop = asyncio.new_event_loop()
+        self._cognify_lock = threading.Lock()
+        self._pending: list[threading.Thread] = []
+        self._manifest = Path(settings.data_dir) / "cognee_facts.jsonl"
+        self._manifest.parent.mkdir(parents=True, exist_ok=True)
 
     def _run(self, coro):
         return self._loop.run_until_complete(coro)
 
     def remember(self, text: str, meta: dict | None = None) -> str:
+        fid = uuid.uuid4().hex
         self._run(self.cognee.add(text))
-        self._run(self.cognee.cognify())
-        return text[:24]
+        # Write-through manifest: exact record of what was stored, for all_facts.
+        with open(self._manifest, "a") as f:
+            f.write(json.dumps({"id": fid, "text": text, "meta": meta or {}}) + "\n")
+
+        # cognify (graph extraction) is slow on CPU -> run it off the hot path.
+        def _bg():
+            with self._cognify_lock:  # serialize concurrent cognify runs
+                loop = asyncio.new_event_loop()
+                try:
+                    loop.run_until_complete(self.cognee.cognify())
+                finally:
+                    loop.close()
+
+        t = threading.Thread(target=_bg, daemon=True)
+        t.start()
+        self._pending.append(t)
+        return fid
+
+    def flush(self, timeout: float | None = None) -> None:
+        """Block until all background cognify runs finish (tests / pre-recall)."""
+        for t in list(self._pending):
+            t.join(timeout)
+        self._pending = [t for t in self._pending if t.is_alive()]
 
     def recall(self, query: str, k: int = 5) -> list[Fact]:
-        # Use CHUNKS (raw vector retrieval) not the default GRAPH_COMPLETION
-        # (which makes the small model generate an answer and is flaky on a 3.8B
-        # model via BAML). CHUNKS returns chunk payloads with payload["text"].
+        # CHUNKS = raw vector retrieval (not GRAPH_COMPLETION, which makes the
+        # small model generate an answer via BAML and is flaky on 3.8B models).
         from cognee.modules.search.types import SearchType
 
         res = self._run(
@@ -99,4 +132,12 @@ class CogneeMemory:
         return facts[:k]
 
     def all_facts(self) -> list[Fact]:
-        return self.recall("", k=50)
+        if not self._manifest.exists():
+            return []
+        out = []
+        with open(self._manifest) as f:
+            for line in f:
+                if line.strip():
+                    r = json.loads(line)
+                    out.append(Fact(id=r["id"], text=r["text"], meta=r.get("meta", {})))
+        return out

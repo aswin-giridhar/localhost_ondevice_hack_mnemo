@@ -1,7 +1,8 @@
 # Inference & agent
 ollama>=0.3.0
 # Memory (primary backend + fallback)
-cognee>=0.1.0          # configured fully local; see config.py
+cognee>=1.1.3          # configured fully local; see cognee_backend.py
+transformers>=4.40.0   # required by cognee for the HF tokenizer (token counting)
 lancedb>=0.33.0        # fallback vector store (>=0.33 for the to_arrow() read path)
 sentence-transformers>=3.0.0  # fallback embeddings
 # Voice
@@ -9,6 +10,7 @@ faster-whisper>=1.0.0
 sounddevice>=0.4.6
 # Vision
 pillow>=10.0.0
+opencv-python-headless>=4.9.0  # device-camera capture (cv2.VideoCapture)
 # Surface
 fastapi>=0.115.0
 uvicorn>=0.30.0

@@ -18,6 +18,11 @@ class Settings:
     embed_model: str = field(
         default_factory=lambda: os.getenv("MNEMO_EMBED_MODEL", "nomic-embed-text")
     )
+    # Optional stronger model for final-answer synthesis after tools run (routing:
+    # LFM2 for tool calls, e.g. phi4-mini for synthesis). Empty -> no extra call.
+    synth_model: str = field(
+        default_factory=lambda: os.getenv("MNEMO_SYNTH_MODEL", "")
+    )
     data_dir: Path = field(
         default_factory=lambda: Path(os.getenv("MNEMO_DATA_DIR", "data"))
     )
