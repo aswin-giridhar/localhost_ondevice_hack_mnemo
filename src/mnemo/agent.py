@@ -22,6 +22,16 @@ class Agent:
         for _ in range(self.max_steps):
             out = model.chat(messages, tools=tools.SCHEMAS)
             if out["tool_calls"]:
+                # Record the assistant's tool-call turn BEFORE the observations,
+                # else the model can't see it already called the tool and just
+                # re-emits the same call every step until max_steps.
+                messages.append({
+                    "role": "assistant",
+                    "content": out["content"],
+                    "tool_calls": [
+                        {"function": {"name": tc["name"], "arguments": tc["arguments"]}}
+                        for tc in out["tool_calls"]],
+                })
                 for tc in out["tool_calls"]:
                     try:
                         result = tools.run(tc["name"], tc["arguments"], self.mem)
@@ -29,7 +39,8 @@ class Agent:
                         result = f"(tool error: {e})"
                     calls_made.append(
                         {"tool": tc["name"], "args": tc["arguments"], "result": result})
-                    messages.append({"role": "tool", "content": result})
+                    messages.append(
+                        {"role": "tool", "content": result, "tool_name": tc["name"]})
                 continue
             reply = out["content"] or "(no response)"
             if self.trace:
