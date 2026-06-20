@@ -1,0 +1,22 @@
+<!-- web/index.html -->
+<!doctype html><meta charset="utf-8"><title>Mnemo</title>
+<style>body{font:16px system-ui;max-width:680px;margin:2rem auto}
+#badge{padding:.3rem .6rem;border-radius:6px;color:#fff}
+.on{background:#16a34a}.off{background:#b91c1c}
+#log{white-space:pre-wrap;border:1px solid #ddd;padding:1rem;min-height:240px}
+input{width:80%}</style>
+<h1>Mnemo <span id="badge">…</span></h1>
+<div id="log"></div>
+<form id="f"><input id="m" placeholder="tell me or ask me something" autofocus>
+<button>send</button></form>
+<script>
+async function ping(){let h=await (await fetch('/health')).json();
+let b=document.getElementById('badge');
+b.textContent=h.offline?'OFFLINE ✓':'ONLINE ✗';b.className=h.offline?'on':'off';}
+setInterval(ping,2000);ping();
+f.onsubmit=async e=>{e.preventDefault();let v=m.value;m.value='';
+log.textContent+='\nyou: '+v;
+let r=await (await fetch('/chat',{method:'POST',headers:{'Content-Type':'application/json'},
+body:JSON.stringify({message:v})})).json();
+log.textContent+='\nmnemo: '+r.reply;}
+</script>
