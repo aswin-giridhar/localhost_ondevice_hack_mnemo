@@ -20,26 +20,27 @@ import os
 #   4. HUGGINGFACE_TOKENIZER makes cognee load the tokenizer via the
 #      `transformers` lib, which is NOT a cognee dependency -> `pip install
 #      transformers`.
-#   5. With (1-4) fixed, cognify() RAN FULLY LOCAL (phi4-mini did graph
-#      extraction: nodes/edges produced, OpenAI sentinel never used). The last
-#      blocker hit: cognee's OllamaEmbeddingEngine POSTs to EMBEDDING_ENDPOINT
-#      verbatim and got `ContentTypeError: 404` at 'http://localhost:11434/v1'.
-#      Ollama's OpenAI-compatible embeddings are at /v1/embeddings; set
-#      EMBEDDING_ENDPOINT to "http://localhost:11434" (no /v1) or the native
-#      "http://localhost:11434/api/embeddings" and re-run. (UNVERIFIED fix.)
-# STATUS: routing confirmed local across 4 gate runs (no phone-home); cognify
-# works offline. NOT yet a green round-trip+restart gate -- last blocker is the
-# embeddings endpoint URL (config string, #5). Per the plan's abort rule the
-# shipped default stays MNEMO_MEMORY_BACKEND=lance (the agent is identical
-# either way). To finish: fix EMBEDDING_ENDPOINT per #5, warm phi4-mini, re-run
-# the offline gate, then flip the default if it passes.
+#   5. cognee's OllamaEmbeddingEngine POSTs to EMBEDDING_ENDPOINT verbatim and
+#      reads data["embeddings"][0] -> the endpoint must be Ollama's NATIVE embed
+#      API: "http://localhost:11434/api/embed" (NOT the /v1 OpenAI path, which
+#      404s). Fixed below.
+#   6. recall() must use SearchType.CHUNKS (raw vector retrieval), not the
+#      default GRAPH_COMPLETION: the latter makes the small model generate an
+#      answer via BAML and fails structured-output validation on phi4-mini.
+# STATUS (2026-06-20): VERIFIED offline end-to-end -- add -> cognify -> search
+# (CHUNKS) returned the stored fact with the OpenAI sentinel never used (no
+# phone-home). Cognee-local works. The shipped DEFAULT still stays
+# MNEMO_MEMORY_BACKEND=lance because cognify() is slow on CPU (per-write graph
+# extraction) and lance is the fast, proven demo path; set
+# MNEMO_MEMORY_BACKEND=cognee to use this graph-memory backend. Requires:
+# `pip install cognee transformers` + ollama models phi4-mini + nomic-embed-text.
 os.environ.setdefault("LLM_PROVIDER", "ollama")
 os.environ.setdefault("LLM_MODEL", "phi4-mini")
 os.environ.setdefault("LLM_ENDPOINT", "http://localhost:11434/v1")
 os.environ.setdefault("LLM_API_KEY", "ollama")  # dummy; never leaves localhost
 os.environ.setdefault("EMBEDDING_PROVIDER", "ollama")
 os.environ.setdefault("EMBEDDING_MODEL", "nomic-embed-text")
-os.environ.setdefault("EMBEDDING_ENDPOINT", "http://localhost:11434/v1")
+os.environ.setdefault("EMBEDDING_ENDPOINT", "http://localhost:11434/api/embed")
 os.environ.setdefault("EMBEDDING_DIMENSIONS", "768")
 os.environ.setdefault("HUGGINGFACE_TOKENIZER", "nomic-ai/nomic-embed-text-v1.5")
 os.environ.setdefault("BAML_LLM_PROVIDER", "ollama")
@@ -79,8 +80,23 @@ class CogneeMemory:
         return text[:24]
 
     def recall(self, query: str, k: int = 5) -> list[Fact]:
-        res = self._run(self.cognee.search(query_text=query))
-        return [Fact(id=str(i), text=str(r), meta={}) for i, r in enumerate(res[:k])]
+        # Use CHUNKS (raw vector retrieval) not the default GRAPH_COMPLETION
+        # (which makes the small model generate an answer and is flaky on a 3.8B
+        # model via BAML). CHUNKS returns chunk payloads with payload["text"].
+        from cognee.modules.search.types import SearchType
+
+        res = self._run(
+            self.cognee.search(query_text=query, query_type=SearchType.CHUNKS, top_k=k))
+        facts: list[Fact] = []
+        for group in res or []:
+            items = group.get("search_result", []) if isinstance(group, dict) else []
+            for rec in items:
+                if not isinstance(rec, dict):
+                    continue
+                text = rec.get("text") or rec.get("content")
+                if text:
+                    facts.append(Fact(id=str(rec.get("id", "")), text=str(text), meta={}))
+        return facts[:k]
 
     def all_facts(self) -> list[Fact]:
         return self.recall("", k=50)
