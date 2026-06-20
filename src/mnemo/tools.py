@@ -23,7 +23,18 @@ SCHEMAS = [
 ]
 
 
+# Runtime-registered tools the agent wrote for itself (Task 12, sandboxed).
+# Each learned tool is a callable (args: dict, mem) -> any.
+LEARNED: dict = {}
+
+
+def register(name: str, func) -> None:
+    LEARNED[name] = func
+
+
 def run(name: str, args: dict, mem) -> str:
+    if name in LEARNED:
+        return str(LEARNED[name](args, mem))
     if name == "remember":
         mem.remember(args["text"], {"kind": "fact"})
         return f"stored: {args['text']}"

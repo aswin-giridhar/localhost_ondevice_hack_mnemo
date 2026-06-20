@@ -91,3 +91,24 @@ def improve_now():
     ex = improve.analyze(TRACE.turns())
     improve.apply(ex)
     return {"learned": ex}
+
+
+@app.post("/selftool")
+def selftool(inp: dict):
+    # Top stretch (Task 12): the agent writes + registers its own tool.
+    # Gated behind MNEMO_ENABLE_SELFTOOL because it runs model-authored code
+    # (sandboxed by improve.validate_tool_code before execution).
+    if not SETTINGS.enable_selftool:
+        return {"enabled": False, "error": "self-tool authoring is disabled"}
+    from . import improve, model
+
+    name = inp["name"]
+    try:
+        code = improve.propose_and_register(
+            name, inp.get("description", ""),
+            path=str(config.data_path("learned_tools.py", SETTINGS)),
+            chat_fn=model.chat,
+        )
+    except ValueError as e:  # generated code failed the safety allowlist
+        return {"enabled": True, "ok": False, "error": str(e)}
+    return {"enabled": True, "ok": True, "tool": name, "code": code}

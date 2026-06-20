@@ -18,3 +18,13 @@ def test_health_reports_offline_flag(tmp_path, monkeypatch):
     from mnemo import server
     c = TestClient(server.app)
     assert "offline" in c.get("/health").json()
+
+
+def test_selftool_disabled_by_default(tmp_path, monkeypatch):
+    monkeypatch.setenv("MNEMO_DATA_DIR", str(tmp_path))
+    from mnemo import server
+    # default flag is off -> the route refuses to author/run code
+    server.SETTINGS.enable_selftool = False
+    c = TestClient(server.app)
+    r = c.post("/selftool", json={"name": "x", "description": "y"})
+    assert r.status_code == 200 and r.json()["enabled"] is False

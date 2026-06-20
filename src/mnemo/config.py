@@ -23,6 +23,11 @@ class Settings:
     memory_backend: str = field(
         default_factory=lambda: os.getenv("MNEMO_MEMORY_BACKEND", "lance")
     )  # the noon spike flips this to "cognee" if local Cognee works offline
+    # Task 12 (top stretch): allow the agent to author + run its own tools at
+    # runtime. OFF by default — it executes model-generated (sandboxed) code.
+    enable_selftool: bool = field(
+        default_factory=lambda: os.getenv("MNEMO_ENABLE_SELFTOOL", "0") == "1"
+    )
 
 
 def load_settings() -> Settings:
