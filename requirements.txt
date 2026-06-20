@@ -2,7 +2,7 @@
 ollama>=0.3.0
 # Memory (primary backend + fallback)
 cognee>=0.1.0          # configured fully local; see config.py
-lancedb>=0.13.0        # fallback vector store
+lancedb>=0.33.0        # fallback vector store (>=0.33 for the to_arrow() read path)
 sentence-transformers>=3.0.0  # fallback embeddings
 # Voice
 faster-whisper>=1.0.0
