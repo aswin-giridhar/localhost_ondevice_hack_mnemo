@@ -1,4 +1,5 @@
 # src/mnemo/server.py
+import json
 import socket
 from pathlib import Path
 
@@ -69,3 +70,24 @@ async def photo_in(file: UploadFile):
     p = config.data_path("_last.jpg", SETTINGS)
     p.write_bytes(await file.read())
     return {"result": tools.run("ingest_photo", {"path": str(p)}, MEM)}
+
+
+@app.post("/feedback")
+def feedback(inp: dict):
+    rows = TRACE.turns()
+    if rows:
+        rows[-1]["correction"] = inp.get("correction", "")
+        rows[-1]["ok"] = False
+        with open(TRACE.path, "w") as f:
+            for r in rows:
+                f.write(json.dumps(r) + "\n")
+    return {"ok": True}
+
+
+@app.post("/improve")
+def improve_now():
+    from . import improve
+
+    ex = improve.analyze(TRACE.turns())
+    improve.apply(ex)
+    return {"learned": ex}
